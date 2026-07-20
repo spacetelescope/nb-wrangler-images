@@ -74,6 +74,10 @@ override_pip_versions:
   # - bqplot @ git+https://github.com/bmorris3/bqplot@pandas3
   # - bqplot-gl @ git+https://github.com/bqplot/bqplot-gl@0.1.0a0
 
+dockerfile_aux_sh: |
+  COPY stop_server_ext.json /etc/jupyter/jupyter_server_config.d/stop_server_ext.json
+COPY stop_server_ext.py /srv/jupyter/stop_server_ext.py
+
 
 out:
   repositories:
