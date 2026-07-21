@@ -21,7 +21,7 @@ system:
   primary_repo: spacetelescope/roman_notebooks
   nb-wrangler:
     repo: https://github.com/spacetelescope/nb-wrangler.git
-    ref: dev
+    ref: main
   spi:
     repo: https://github.com/jaytmiller/science-platform-images.git
     ref: dev
@@ -75,16 +75,19 @@ override_pip_versions:
   # - bqplot-gl @ git+https://github.com/bqplot/bqplot-gl@0.1.0a0
 
 dockerfile_aux_sh: |
-  COPY stop_server_ext.json /etc/jupyter/jupyter_server_config.d/stop_server_ext.json
-COPY stop_server_ext.py /srv/jupyter/stop_server_ext.py
-
+  #! /bin/bash
+  npx degit https://github.com/jaytmiller/nb-wrangler-images/assets/roman#dev roman-assets
+  cp roman-assets/*  /opt/environments
+  cp roman-assets/stop_server_ext.json  /etc/jupyter/jupyter_server_config.d/stop_server_ext.json
+  cp /opt/environments/stop_server_ext.py    /srv/jupyter/stop_server_ext.py
+  # Remove original copies to avoid confusion
+  rm -rf /opt/environments/stop_server_ext.json /opt/environments/stop_server_ext.py  roman-assets
 
 out:
   repositories:
     roman_notebooks:
       url: https://github.com/jaytmiller/roman_notebooks.git
       ref: 'df14b2cdc4b15641012d99c9123d9b50309e7f51'
-
       resolved_ref: 2026.2.2
   spi:
     repo: https://github.com/jaytmiller/science-platform-images.git
