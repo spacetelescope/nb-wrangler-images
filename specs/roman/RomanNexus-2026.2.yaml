@@ -31,11 +31,15 @@ system:
   spi:
     repo: https://github.com/spacetelescope/science-platform-images.git
     ref: dev
-  date_updated: '2026-07-23T11:45:15.291327'
-  spec_sha256: 3ab5e16c1bd8a50de333e8c508505ea5d9dcac825d3ce89796d56cfe95e47aec
+  date_updated: '2026-07-23T11:59:48.150731'
+  spec_sha256: 7a5f843d72c1bb90dd5783f3e0a5990edc28a1fb39d89edde08e24c296f05b30
 
 # Files that are downloaded and/or copied to the specified locations in images
 assets:
+  - repo: https://github.com/spacetelescope/nb-wrangler-images.git
+    ref: main
+    source: assets/roman
+    destination: /opt/environments
   - repo: https://github.com/spacetelescope/nb-wrangler-images.git
     ref: main
     source: assets/generic/stop_server_ext.json
