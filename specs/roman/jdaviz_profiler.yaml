@@ -45,8 +45,8 @@ system:
     repo: "https://github.com/spacetelescope/science-platform-images.git"
   nb-wrangler:
     repo: "https://github.com/spacetelescope/nb-wrangler.git"
-  date_updated: '2026-08-27T13:57:40.468100'
-  spec_sha256: f8f9c786bb5b04abd3d6ac4515af0d5ccbcad65077bf3485671f213ba537906b
+  date_updated: '2026-08-27T14:01:47.285176'
+  spec_sha256: 3fe43ed47588f19c73e92209e218804dbd41be30387b584bbdc59821e52e02d2
 out:
   repositories: {}
   spi:
