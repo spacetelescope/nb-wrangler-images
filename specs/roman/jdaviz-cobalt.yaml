@@ -1,12 +1,12 @@
 # nb-wrangler specification file
-# Generated on: 2026-08-27T14:14:27.624859
+# Generated on: 2026-08-27T15:29:09.770636
 
 image_spec_header:
-  image_name: "jdaviz-profiler"
-  description: "Test environment for jdaviz profiling"
-  kernel_name: "jdaviz-profiler"
+  image_name: "jdaviz-cobalt"
+  description: "Testing environment for jdaviz profiler"
+  kernel_name: "jdaviz-cobalt"
   deployment_name: "wrangler"
-  display_name: "JDaviz Profiler (Python 3.12)"
+  display_name: "JDaviz Cobalt (Python 3.12)"
   python_version: "3.12"
   valid_on: "2026-08-27"
   expires_on: "2027-08-27"
@@ -23,16 +23,16 @@ selected_notebooks:
   #   repo: "my_repo"
   #   include_subdirs: ["."]
 
-# apt_packages:
-#   - libnspr4
-#   - libnss3
+apt_packages:
+  - libnspr4
+  - libnss3
 
 common_pip_packages:
 #   - jdaviz>5.0.0
 #   - jupyterlab
 #   - bqplot<0.13
 #   - bqplot-gl==0.0.0
-   - pillow
+#   - pillow
 #   - selenium
 #   - chromedriver-py
 #   - requests
@@ -46,8 +46,8 @@ system:
     repo: "https://github.com/spacetelescope/science-platform-images.git"
   nb-wrangler:
     repo: "https://github.com/spacetelescope/nb-wrangler.git"
-  date_updated: '2026-08-27T15:05:43.465421'
-  spec_sha256: 0707dd15465fcdfcace8e678adef737c6ce9dc0809c1407e3ad755282e748180
+  date_updated: '2026-08-27T15:31:08.480269'
+  spec_sha256: f7ed7296f0338eb3ee8b4fbed87ec5c6db2d0ab40b8d90e4f2682e0774fc1ca4
 out:
   repositories: {}
   spi:
@@ -55,9 +55,9 @@ out:
     ref: fd6fccbfac571aeb549165311d1dc966ff5b3a82
   test_notebooks: []
   nb_to_imports: {}
-  kernel_name: "jdaviz-profiler"
+  kernel_name: "jdaviz-cobalt"
   mamba_spec: |
-    name: "jdaviz-profiler"
+    name: "jdaviz-cobalt"
     channels:
       - conda-forge
     dependencies:
@@ -66,7 +66,7 @@ out:
       - pip
       - pip-tools
       - setuptools<82.0.0
-      - python=3.11
+      - python=3.12
       - uv
       - pip
       - ipykernel
@@ -76,7 +76,7 @@ out:
       - wheel
   mamba_package_map:
     base_mamba_deps:
-      - python=3.11
+      - python=3.12
     common_mamba_packages: []
     extra_mamba_packages: []
     spi_mamba_packages:
@@ -253,17 +253,15 @@ out:
         # via nbconvert
     blinker==1.9.0
         # via flask
-    bokeh==3.9.2 ; python_full_version < '3.12'
+    bokeh==3.10.0
         # via jupyter-bokeh
-    bokeh==3.10.0 ; python_full_version >= '3.12'
-        # via jupyter-bokeh
-    boto3==1.43.56
+    boto3==1.43.81
         # via -r references/science-platform-images/deployments/common/common-env/common.pip
-    botocore==1.43.56
+    botocore==1.43.81
         # via
         #   boto3
         #   s3transfer
-    bqplot==0.12.47
+    bqplot==0.13.1
         # via
         #   -r references/science-platform-images/deployments/common/common-env/jupyter.pip
         #   bqplot-gl
@@ -271,7 +269,7 @@ out:
         #   bqplot-linlog
         #   glue-jupyter
         #   ipyvolume
-    bqplot-gl==0.0.0
+    bqplot-gl==0.1.1
         # via glue-jupyter
     bqplot-image-gl==1.10.2
         # via
@@ -279,6 +277,8 @@ out:
         #   glue-jupyter
     bqplot-linlog==0.2.1
         # via glue-jupyter
+    bqscales==0.3.7
+        # via bqplot
     build==1.5.0
         # via
         #   nab-project
@@ -327,9 +327,7 @@ out:
         #   ipykernel
         #   ipywidgets
     contourpy==1.3.3
-        # via
-        #   bokeh
-        #   matplotlib
+        # via matplotlib
     crds==13.2.8
         # via ci-watson
     cryptography==50.0.1
@@ -428,8 +426,6 @@ out:
         # via scikit-image
     imagesize==2.0.1
         # via sphinx
-    importlib-metadata==9.0.0 ; python_full_version < '3.12'
-        # via asdf
     iniconfig==2.3.0
         # via pytest
     installer==1.0.1
@@ -498,6 +494,7 @@ out:
         #   bqplot
         #   bqplot-image-gl
         #   bqplot-linlog
+        #   bqscales
         #   glue-jupyter
         #   ipydatawidgets
         #   ipyevents
@@ -754,40 +751,14 @@ out:
         # via
         #   jupyterlab
         #   notebook
-    numpy==2.4.6 ; python_full_version < '3.12'
+    numpy==2.5.2
         # via
         #   -r references/science-platform-images/deployments/common/common-env/common.pip
         #   asdf
         #   astropy
         #   bokeh
         #   bqplot
-        #   contourpy
-        #   crds
-        #   echo
-        #   fast-histogram
-        #   glue-core
-        #   h5py
-        #   imageio
-        #   ipydatawidgets
-        #   ipympl
-        #   ipyvolume
-        #   matplotlib
-        #   mpl-scatter-density
-        #   pandas
-        #   pyerfa
-        #   pythreejs
-        #   scikit-image
-        #   scipy
-        #   shapely
-        #   solara-ui
-        #   tifffile
-    numpy==2.5.2 ; python_full_version >= '3.12'
-        # via
-        #   -r references/science-platform-images/deployments/common/common-env/common.pip
-        #   asdf
-        #   astropy
-        #   bokeh
-        #   bqplot
+        #   bqscales
         #   contourpy
         #   crds
         #   echo
@@ -816,8 +787,6 @@ out:
         # via glue-core
     opentelemetry-api==1.44.0
         # via ddtrace
-    overrides==7.7.0 ; python_full_version < '3.12'
-        # via jupyter-server
     packaging==26.3
         # via
         #   asdf
@@ -1071,11 +1040,7 @@ out:
         # via boto3
     scikit-image==0.26.0
         # via glue-jupyter
-    scipy==1.17.1 ; python_full_version < '3.12'
-        # via
-        #   glue-core
-        #   scikit-image
-    scipy==1.18.1 ; python_full_version >= '3.12'
+    scipy==1.18.1
         # via
         #   glue-core
         #   scikit-image
@@ -1111,22 +1076,7 @@ out:
         #   solara-server
     soupsieve==2.9.2
         # via beautifulsoup4
-    sphinx==9.0.4 ; python_full_version < '3.12'
-        # via
-        #   -r references/science-platform-images/deployments/common/common-env/docs.pip
-        #   astropy-sphinx-theme
-        #   nbsphinx
-        #   numpydoc
-        #   pydata-sphinx-theme
-        #   sphinx-astropy
-        #   sphinx-automodapi
-        #   sphinx-gallery
-        #   sphinx-rtd-theme
-        #   sphinxcontrib-jquery
-        #   sphinxext-opengraph
-        #   stsci-rtd-theme
-        #   sunpy-sphinx-theme
-    sphinx==9.1.0 ; python_full_version >= '3.12'
+    sphinx==9.1.0
         # via
         #   -r references/science-platform-images/deployments/common/common-env/docs.pip
         #   astropy-sphinx-theme
@@ -1195,9 +1145,7 @@ out:
         # via
         #   jupyter-server
         #   jupyter-server-terminals
-    tifffile==2026.3.3 ; python_full_version < '3.12'
-        # via scikit-image
-    tifffile==2026.8.23 ; python_full_version >= '3.12'
+    tifffile==2026.8.23
         # via scikit-image
     tinycss2==1.5.1
         # via bleach
@@ -1228,6 +1176,7 @@ out:
     traitlets==5.16.1
         # via
         #   bqplot
+        #   bqscales
         #   ipykernel
         #   ipympl
         #   ipython
@@ -1254,6 +1203,7 @@ out:
     traittypes==0.2.3
         # via
         #   bqplot
+        #   bqscales
         #   ipydatawidgets
         #   ipyvolume
     truststore==0.10.4
@@ -1266,9 +1216,7 @@ out:
         #   anyio
         #   anywidget
         #   beautifulsoup4
-        #   ipython
         #   jupyter-client
-        #   jupyterlab
         #   nab-index
         #   nab-project
         #   nab-provider
@@ -1344,5 +1292,3 @@ out:
         # via -r references/science-platform-images/deployments/common/common-env/jupyter.pip
     yq==4.1.2
         # via -r references/science-platform-images/deployments/common/common-env/common.pip
-    zipp==4.1.0 ; python_full_version < '3.12'
-        # via importlib-metadata
