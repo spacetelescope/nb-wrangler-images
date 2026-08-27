@@ -6,8 +6,8 @@ image_spec_header:
   description: "Test environment for jdaviz profiling"
   kernel_name: "jdaviz-profiler"
   deployment_name: "wrangler"
-  display_name: "JDaviz Profiler (Python 3.11)"
-  python_version: "3.11"
+  display_name: "JDaviz Profiler (Python 3.12)"
+  python_version: "3.12"
   valid_on: "2026-08-27"
   expires_on: "2027-08-27"
 
@@ -23,16 +23,16 @@ selected_notebooks:
   #   repo: "my_repo"
   #   include_subdirs: ["."]
 
-apt_packages:
-  - libnspr4
-  - libnss3
+# apt_packages:
+#   - libnspr4
+#   - libnss3
 
-# common_pip_packages:
+common_pip_packages:
 #   - jdaviz>5.0.0
 #   - jupyterlab
 #   - bqplot<0.13
 #   - bqplot-gl==0.0.0
-#   - pillow
+   - pillow
 #   - selenium
 #   - chromedriver-py
 #   - requests
