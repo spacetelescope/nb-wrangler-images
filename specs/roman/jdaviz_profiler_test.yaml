@@ -46,7 +46,6 @@ system:
   nb-wrangler:
     repo: "https://github.com/spacetelescope/nb-wrangler.git"
   date_updated: '2026-08-27T13:46:51.609129'
-  spec_sha256: ab6bf6a007686126c023c36a0f38e89fded4ca8e67927ee78c184734a7309c07
 out:
   repositories: {}
   spi:
