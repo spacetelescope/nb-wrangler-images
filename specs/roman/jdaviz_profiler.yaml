@@ -45,13 +45,13 @@ system:
     repo: "https://github.com/spacetelescope/science-platform-images.git"
   nb-wrangler:
     repo: "https://github.com/spacetelescope/nb-wrangler.git"
-  date_updated: '2026-08-27T12:10:24.235486'
-  spec_sha256: 73c5d2a0375218ae8659b93d97b1e11da3fe985c4ce4e0a474c1cfcf6e786afe
+  date_updated: '2026-08-27T13:19:54.578967'
+  spec_sha256: 3cb2a6ce297f886a6ced1c1a9d07961a02dea0c2f59460e5efd4a40d0fd5f54c
 out:
   repositories: {}
   spi:
     repo: "https://github.com/spacetelescope/science-platform-images.git"
-    ref: 103cf61bea49a687cf8a168b76e1a415f4718b8c
+    ref: fd6fccbfac571aeb549165311d1dc966ff5b3a82
   test_notebooks: {}
   test_imports: []
   nb_to_imports: {}
@@ -99,7 +99,6 @@ out:
     - references/science-platform-images/deployments/common/common-env/docs.pip
     - references/science-platform-images/deployments/common/common-env/jupyter.pip
     - references/science-platform-images/deployments/common/common-env/testing.pip
-    - references/science-platform-images/deployments/wrangler/environments/common-hints.pip
     - /Users/cganley/.nbw-live/temps/extra_pip_packages.txt
     - /Users/cganley/.nbw-live/temps/common_pip_packages.txt
   pip_compiler_output: |
@@ -400,9 +399,7 @@ out:
         #   ipympl
         #   ipywidgets
     ipython-genutils==0.2.0
-        # via
-        #   -r references/science-platform-images/deployments/common/common-env/jupyter.pip
-        #   glue-jupyter
+        # via glue-jupyter
     ipython-pygments-lexers==1.1.1
         # via ipython
     ipyvolume==0.6.3
@@ -582,13 +579,10 @@ out:
         #   jupyterlab
         #   notebook
         #   voila
-    jupyterlab-tour==4.0.1
-        # via -r references/science-platform-images/deployments/common/common-env/jupyter.pip
     jupyterlab-widgets==3.0.17
         # via
         #   -r references/science-platform-images/deployments/common/common-env/jupyter.pip
         #   ipywidgets
-        #   voila-gridstack
     jupytext==1.19.5
         # via -r references/science-platform-images/deployments/common/common-env/jupyter.pip
     kiwisolver==1.5.0
@@ -669,9 +663,7 @@ out:
         #   nbsphinx
         #   voila
     nbdime==4.0.4
-        # via
-        #   -r references/science-platform-images/deployments/common/common-env/jupyter.pip
-        #   jupyterlab-git-core
+        # via jupyterlab-git-core
     nbformat==5.11.1
         # via
         #   -r /Users/cganley/.nbw-live/temps/common_pip_packages.txt
@@ -778,7 +770,6 @@ out:
         # via
         #   -r references/science-platform-images/deployments/common/common-env/common.pip
         #   -r references/science-platform-images/deployments/common/common-env/required.pip
-        #   -r references/science-platform-images/deployments/wrangler/environments/common-hints.pip
     parsley==1.3
         # via crds
     parso==0.8.7
@@ -1096,6 +1087,8 @@ out:
         # via solara-server
     stdlib-list==0.12.0
         # via pydeps
+    stsci-announce @ git+https://github.com/spacetelescope/stsci-announce.git@c755fc7f824d24e49c09a63f308d6cb881a9e543
+        # via -r references/science-platform-images/deployments/common/common-env/jupyter.pip
     stsci-rtd-theme==1.0.1
         # via -r references/science-platform-images/deployments/common/common-env/docs.pip
     sunpy-sphinx-theme==2.2.2
@@ -1216,8 +1209,6 @@ out:
     uvicorn==0.52.4
         # via solara-server
     voila==0.5.12
-        # via voila-gridstack
-    voila-gridstack==0.4.0
         # via -r references/science-platform-images/deployments/common/common-env/jupyter.pip
     watchdog==6.0.0
         # via solara-server
@@ -1246,9 +1237,7 @@ out:
         #   jupyter-packaging
         #   pip-tools
     widgetsnbextension==4.0.16
-        # via
-        #   -r references/science-platform-images/deployments/common/common-env/jupyter.pip
-        #   ipywidgets
+        # via ipywidgets
     wrapt==2.3.0
         # via ddtrace
     wsproto==1.3.2
