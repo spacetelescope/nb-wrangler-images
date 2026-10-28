@@ -1,5 +1,7 @@
 name: Re-tag Existing Image
 
+run-name: Retag ${{ inputs.input_tag }} as ${{ inputs.output_tag }}${{ inputs.correlation_id != '' && format(' [{0}]', inputs.correlation_id) || '' }}
+
 on:
   workflow_dispatch:
     inputs:
@@ -11,6 +13,21 @@ on:
         description: The GHCR alias tag being created for the input image
         required: true
         type: string
+      input_digest:
+        description: Digest the build reported (sha256:...). When given, the alias is created for exactly that image and refused if input_tag no longer points at it
+        required: false
+        type: string
+        default: ''
+      allow_move:
+        description: Allow an existing alias to be moved to a different image (default is immutable)
+        required: false
+        type: boolean
+        default: false
+      correlation_id:
+        description: Caller-supplied id, echoed in the run name so the caller can find this run
+        required: false
+        type: string
+        default: ''
 
   workflow_call:
     inputs:
@@ -22,6 +39,21 @@ on:
         description: The GHCR image tag alias for the input image
         required: true
         type: string
+      input_digest:
+        description: Digest the build reported (sha256:...). When given, the alias is created for exactly that image and refused if input_tag no longer points at it
+        required: false
+        type: string
+        default: ''
+      allow_move:
+        description: Allow an existing alias to be moved to a different image (default is immutable)
+        required: false
+        type: boolean
+        default: false
+      correlation_id:
+        description: Caller-supplied id, echoed in the run name so the caller can find this run
+        required: false
+        type: string
+        default: ''
 
 defaults:
   run:
@@ -31,6 +63,10 @@ jobs:
   nb-wrangler-retag:
     name: Re-tag/Alias Existing Image
     runs-on: 'ubuntu-24.04'
+    # Two runs for the same alias must not both see it as free.
+    concurrency:
+      group: retag-${{ inputs.output_tag }}
+      cancel-in-progress: false
     permissions:
       contents: read
       packages: write       # Allows GITHUB_TOKEN to push to GHCR
@@ -49,6 +85,57 @@ jobs:
       # -----   run: |
       # -----     pip install nb-wrangler
 
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # Runs before any registry login.  The delivery GitHub Apps can start this
+      # workflow with arbitrary inputs, so what each may write is fixed here:
+      #   delivery App       RomanNexus-dev (moving) or RomanNexus-<calver> (never moving),
+      #                      from this workflow on main, or the ops alias, from promote.yml on main
+      #   proving-ground App RRNTest-dev or RRNTest-<calver> only
+      # Anyone else (a person dispatching by hand) is not restricted here.
+      - name: Limit what the delivery Apps may alias
+        env:
+          ACTOR: ${{ github.triggering_actor }}
+          APP_BOT: ${{ vars.RRN_APP_BOT }}
+          TEST_APP_BOT: ${{ vars.RRN_TEST_APP_BOT }}
+          OPS_ALIAS: ${{ vars.RRN_OPS_ALIAS }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+          REPO: ${{ github.repository }}
+          OUTPUT_TAG: ${{ inputs.output_tag }}
+          ALLOW_MOVE: ${{ inputs.allow_move }}
+        run: |
+          set -euo pipefail
+          # If neither bot login is configured, nothing can be enforced. Say so loudly rather than silently allow.
+          if [[ -z "$APP_BOT" && -z "$TEST_APP_BOT" ]]; then
+            echo "::warning::RRN_APP_BOT and RRN_TEST_APP_BOT are not set, so the delivery Apps' restrictions are not enforced."
+            exit 0
+          fi
+          # Only the delivery Apps are restricted here. A person dispatching by hand is not.
+          if [[ "$ACTOR" != "$APP_BOT" && "$ACTOR" != "$TEST_APP_BOT" ]]; then
+            exit 0
+          fi
+          wf="${REPO}/.github/workflows"
+          if [[ "$ACTOR" == "$TEST_APP_BOT" ]]; then
+            # The proving-ground App may only ever write aliases that start with RRNTest.
+            prefix=RRNTest
+          else
+            prefix=RomanNexus
+            # Promotion: the one place the delivery App may write the ops alias.
+            if [[ "$WORKFLOW_REF" == "${wf}/promote.yml@refs/heads/main" ]]; then
+              if [[ -n "$OPS_ALIAS" && "$OUTPUT_TAG" == "$OPS_ALIAS" ]]; then exit 0; fi
+              echo "::error::The delivery App may only promote to the configured ops alias."; exit 1
+            fi
+          fi
+          # Otherwise this must be retag.yml itself, from main, never from a branch with altered scripts.
+          if [[ "$WORKFLOW_REF" != "${wf}/retag.yml@refs/heads/main" ]]; then
+            echo "::error::The delivery App may only run retag.yml from main (got ${WORKFLOW_REF})."; exit 1
+          fi
+          # Allowed: the dev alias (which moves), or a release alias (which must not).
+          if [[ "$OUTPUT_TAG" == "${prefix}-dev" && "$ALLOW_MOVE" == "true" ]]; then exit 0; fi
+          if [[ "$OUTPUT_TAG" =~ ^${prefix}-[0-9]{4}\.[0-9]+\.[0-9]+$ && "$ALLOW_MOVE" == "false" ]]; then exit 0; fi
+          echo "::error::The delivery App may not write alias '${OUTPUT_TAG}' (allow_move=${ALLOW_MOVE})."; exit 1
+
       - name: Verify Docker availability
         run: docker version
 
@@ -63,17 +150,44 @@ jobs:
           echo IMAGE_ROOT=$IMAGE_ROOT >> $GITHUB_ENV
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}  # or PAT with write:packages
 
-      - name: Pull source image
+      # Release aliases must never silently change meaning.  Re-running with the
+      # same source is a no-op; pointing an existing alias elsewhere needs allow_move.
+      - name: Check output alias is free or already correct
+        env:
+          INPUT_TAG: ${{ inputs.input_tag }}
+          OUTPUT_TAG: ${{ inputs.output_tag }}
+          ALLOW_MOVE: ${{ inputs.allow_move }}
+          INPUT_DIGEST: ${{ inputs.input_digest }}
+        run: bash scripts/check_alias.sh "${IMAGE_ROOT}" "${INPUT_TAG}" "${OUTPUT_TAG}" "${ALLOW_MOVE}" "${INPUT_DIGEST}"
+
+      # By digest the registry copies the manifest itself: no pull, and the alias
+      # can only ever point at the image the build reported.
+      - name: Add alias by digest
+        if: ${{ inputs.input_digest != '' }}
+        env:
+          OUTPUT_TAG: ${{ inputs.output_tag }}
+          INPUT_DIGEST: ${{ inputs.input_digest }}
         run: |
-          docker pull ${IMAGE_ROOT}:${{ inputs.input_tag }}
+          docker buildx imagetools create --tag "${IMAGE_ROOT}:${OUTPUT_TAG}" "${IMAGE_ROOT}@${INPUT_DIGEST}"
+
+      - name: Pull source image
+        if: ${{ inputs.input_digest == '' }}
+        env:
+          INPUT_TAG: ${{ inputs.input_tag }}
+        run: |
+          docker pull "${IMAGE_ROOT}:${INPUT_TAG}"
 
       - name: Add new tag and push
+        if: ${{ inputs.input_digest == '' }}
+        env:
+          INPUT_TAG: ${{ inputs.input_tag }}
+          OUTPUT_TAG: ${{ inputs.output_tag }}
         run: |
-             docker tag  ${IMAGE_ROOT}:${{ inputs.input_tag }}  ${IMAGE_ROOT}:${{ inputs.output_tag }}
-             docker push ${IMAGE_ROOT}:${{ inputs.output_tag }}
+             docker tag  "${IMAGE_ROOT}:${INPUT_TAG}"  "${IMAGE_ROOT}:${OUTPUT_TAG}"
+             docker push "${IMAGE_ROOT}:${OUTPUT_TAG}"

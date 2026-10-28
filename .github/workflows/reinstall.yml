@@ -1,5 +1,9 @@
 name: Reinstall (Use spec notebook, code, data locks)
 
+# The correlation id (when given) is part of the run name so a caller that
+# dispatched this workflow can find the exact run it started.
+run-name: Reinstall ${{ inputs.spec_file }}${{ inputs.correlation_id != '' && format(' [{0}]', inputs.correlation_id) || '' }}
+
 # -- This workflow rebuilds an image from an existing completed spec using the
 # -- spec repo and package pins. By default this workflow will use --prod mode
 # -- (ignore overrides) but another robust way to ensure --prod is to disable
@@ -26,6 +30,16 @@ on:
         required: false
         type: string
         default: 'main'
+      correlation_id:
+        description: 'Caller-supplied id, echoed in the run name so the caller can find this run'
+        required: false
+        type: string
+        default: ''
+      runner_group:
+        description: 'Larger-runner group to build and test on, e.g. jwst-pipeline-notebooks-64gb. Empty means ubuntu-24.04'
+        required: false
+        type: string
+        default: ''
   workflow_call:
     inputs:
       spec_file:
@@ -43,6 +57,16 @@ on:
         required: false
         type: string
         default: 'main'
+      correlation_id:
+        description: 'Caller-supplied id, echoed in the run name so the caller can find this run'
+        required: false
+        type: string
+        default: ''
+      runner_group:
+        description: 'Larger-runner group to build and test on, e.g. jwst-pipeline-notebooks-64gb. Empty means ubuntu-24.04'
+        required: false
+        type: string
+        default: ''
 
 defaults:
   run:
@@ -51,13 +75,64 @@ defaults:
 jobs:
   nb-wrangler-reinstall:
     name: Reinstall (Prod, use spec notebook, code, data locks)
-    runs-on: 'ubuntu-24.04'
+    # One build per spec at a time.
+    concurrency:
+      group: reinstall-${{ inputs.spec_file }}
+      cancel-in-progress: false
+    # Larger runners are selected by group, not label.  Only the known groups are
+    # accepted, so the input cannot inject other runner settings.
+    runs-on: ${{ contains(fromJSON('["jwst-pipeline-notebooks-16gb","jwst-pipeline-notebooks-64gb"]'), inputs.runner_group) && fromJSON(format('{{"group":"{0}"}}', inputs.runner_group)) || 'ubuntu-24.04' }}
     permissions:
       contents: read
       packages: write       # Allows GITHUB_TOKEN to push to GHCR
     steps:
       - name: Checkout "Notebook Repo"
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # Full history, so the guard step can compare this branch with main.
+          fetch-depth: 0
+
+      # The delivery GitHub Apps can push a branch and start this workflow with
+      # their own inputs, and this job holds GHCR write access.  Whatever those
+      # Apps can make it run is therefore limited here, before any login.
+      #  - Always: values that reach shell later must look like what they claim.
+      #  - For the Apps: the spec must live on main or a delivery branch, the tool
+      #    must be spacetelescope/nb-wrangler@main, and the branch may differ from
+      #    main only under specs/ (scripts and assets cannot be swapped out).
+      - name: Limit what the delivery Apps may run
+        env:
+          ACTOR: ${{ github.triggering_actor }}
+          APP_BOT: ${{ vars.RRN_APP_BOT }}
+          TEST_APP_BOT: ${{ vars.RRN_TEST_APP_BOT }}
+          REF_NAME: ${{ github.ref_name }}
+          WRANGLER_OWNER: ${{ inputs.wrangler_owner }}
+          WRANGLER_REF: ${{ inputs.wrangler_ref }}
+          SPEC_FILE: ${{ inputs.spec_file }}
+        run: |
+          set -euo pipefail
+          [[ "$WRANGLER_OWNER" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,38}$ ]] || { echo "::error::Invalid wrangler_owner"; exit 1; }
+          [[ "$WRANGLER_REF" =~ ^[A-Za-z0-9._/-]{1,100}$ ]] || { echo "::error::Invalid wrangler_ref"; exit 1; }
+          if ! [[ "$SPEC_FILE" =~ ^specs/[A-Za-z0-9._/-]{1,150}\.ya?ml$ ]] || [[ "$SPEC_FILE" == *..* ]]; then
+            echo "::error::Invalid spec_file"; exit 1
+          fi
+          if [[ -z "$APP_BOT" && -z "$TEST_APP_BOT" ]]; then
+            echo "::warning::RRN_APP_BOT and RRN_TEST_APP_BOT are not set, so the delivery Apps' restrictions are not enforced."
+            exit 0
+          fi
+          if [[ "$ACTOR" != "$APP_BOT" && "$ACTOR" != "$TEST_APP_BOT" ]]; then
+            exit 0
+          fi
+          if [[ "$WRANGLER_OWNER" != spacetelescope || "$WRANGLER_REF" != main ]]; then
+            echo "::error::The delivery Apps may only use spacetelescope/nb-wrangler@main."; exit 1
+          fi
+          if [[ "$REF_NAME" != main && "$REF_NAME" != rrn/* ]]; then
+            echo "::error::The delivery Apps may only run this from main or an rrn/ branch (got ${REF_NAME})."; exit 1
+          fi
+          git fetch --quiet --no-tags origin main
+          changed=$(git diff --name-only origin/main...HEAD)
+          if [[ -n "$changed" ]] && grep -qvE '^specs/' <<<"$changed"; then
+            echo "::error::A delivery branch may only change files under specs/. Changed:"; echo "$changed"; exit 1
+          fi
 
       - name: Set up system tools
         run: |
@@ -205,6 +280,38 @@ jobs:
           source setup-env
           image-test --test-notebooks ${NBW_OVERRIDES_MODE}
           rm -rf $NBW_REPOS_DIR
+
+      # Machine-readable result for callers.  Workflow outputs are not available
+      # for runs started with workflow_dispatch, so an artifact is used instead.
+      - name: Record result
+        env:
+          CORRELATION_ID: ${{ inputs.correlation_id }}
+          SPEC_FILE: ${{ inputs.spec_file }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # The registry digest of the image that was just pushed. The caller later makes its alias from this digest.
+          DIGEST=$(bash "$GITHUB_WORKSPACE/scripts/image_digest.sh" "${IMAGE_ID}")
+          # Build the JSON with jq --arg, which escapes values, instead of pasting them into a string.
+          jq -n \
+            --arg correlation_id "$CORRELATION_ID" \
+            --arg spec_file "$SPEC_FILE" \
+            --arg spec_tag "$SPEC_TAG" \
+            --arg spec_image_id "$SPEC_IMAGE_ID" \
+            --arg image_tag "$IMAGE_TAG" \
+            --arg image_id "$IMAGE_ID" \
+            --arg image_digest "$DIGEST" \
+            --arg wrangler_ref "$WRANGLER_REF" \
+            --arg run_url "$RUN_URL" \
+            '$ARGS.named' > rrn-result.json
+          cat rrn-result.json
+
+      # The artifact is how the caller (another repository's workflow) gets the result.
+      - name: Upload result
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: rrn-result
+          path: rrn-result.json
+          if-no-files-found: error
 
       # ----- - name: Scan Image (advisory)
       # -----   run: |
