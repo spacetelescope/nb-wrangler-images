@@ -1,0 +1,124 @@
+name: Promote release image to ops
+
+# Ops only ever receives an immutable CalVer release alias that already passed
+# the build and its tests.  Approval happens through the protected `rrn-ops`
+# environment: configure required reviewers on it to make a human the gate, or
+# leave it without reviewers to let a manual release flow straight to ops.  The
+# retag workflow then creates the alias that the ops environment consumes.
+#
+# The ops alias is NOT an input.  It comes from the RRN_OPS_ALIAS variable of this
+# repository, so whoever starts a promotion cannot choose what gets overwritten.
+#
+# Started by roman_notebooks after a release (see rrn-deliver.yaml) or by hand.
+
+run-name: Promote ${{ inputs.release_alias }} (${{ inputs.release_digest != '' && inputs.release_digest || 'no digest' }})${{ inputs.correlation_id != '' && format(' [{0}]', inputs.correlation_id) || '' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_alias:
+        description: 'Existing release alias to promote, e.g. RomanNexus-2026.2.4'
+        required: true
+        type: string
+      release_digest:
+        description: 'Digest the release build reported (sha256:...). Promotion is refused if the alias no longer points at it'
+        required: false
+        type: string
+        default: ''
+      correlation_id:
+        description: 'Caller-supplied id, echoed in the run name so the caller can find this run'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rrn-promote-ops
+  cancel-in-progress: false
+
+jobs:
+  # The gate. Binding it to the rrn-ops environment makes GitHub pause here until that environment's
+  # required reviewers, if it has any, approve. Everything that checks the request lives in this job.
+  approve:
+    name: Approve and gate
+    runs-on: ubuntu-24.04
+    environment: rrn-ops
+    permissions:
+      contents: read
+    steps:
+      - name: Only CalVer release aliases can be promoted, to a configured ops alias
+        env:
+          RELEASE_ALIAS: ${{ inputs.release_alias }}
+          RELEASE_DIGEST: ${{ inputs.release_digest }}
+          OPS_ALIAS: ${{ vars.RRN_OPS_ALIAS }}
+        run: |
+          if ! [[ "$RELEASE_ALIAS" =~ ^RomanNexus-[0-9]{4}\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'$RELEASE_ALIAS' is not a CalVer release alias (RomanNexus-YYYY.MAJOR.MINOR). Dev and test aliases cannot be promoted."
+            exit 1
+          fi
+          if [[ -n "$RELEASE_DIGEST" && ! "$RELEASE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::release_digest is not a sha256 digest."; exit 1
+          fi
+          # The ops alias is configured in this repository, never supplied by the caller.
+          if [[ -z "$OPS_ALIAS" ]]; then
+            echo "::error::RRN_OPS_ALIAS is not set in this repository, so there is nothing to promote to."; exit 1
+          fi
+          # The ops alias is a rolling pointer; it must never be (or look like) a release alias.
+          if ! [[ "$OPS_ALIAS" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || [[ "$OPS_ALIAS" =~ ^RomanNexus-[0-9]{4}\. ]]; then
+            echo "::error::RRN_OPS_ALIAS '${OPS_ALIAS}' is not a valid ops alias (it must not look like a release alias)."; exit 1
+          fi
+
+      # Make the facts an approver relies on visible, rather than assumed.
+      - name: Show what is being approved
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ALIAS: ${{ inputs.release_alias }}
+          RELEASE_DIGEST: ${{ inputs.release_digest }}
+          OPS_ALIAS: ${{ vars.RRN_OPS_ALIAS }}
+        run: |
+          {
+            echo "### Promote \`${RELEASE_ALIAS}\` to \`${OPS_ALIAS}\`"
+            echo ""
+            echo "Digest: \`${RELEASE_DIGEST:-not supplied}\`"
+            echo ""
+            echo "> **No container scan has been performed.** The scan gate below is a placeholder."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::warning::Container scan gate is a placeholder: this promotion has NOT been scanned."
+          # Look up whether the rrn-ops environment really has required reviewers, so the run can say so.
+          reviewers=$(gh api "repos/${GITHUB_REPOSITORY}/environments/rrn-ops" --jq '[.protection_rules[]?.type] | index("required_reviewers") != null' 2>/dev/null || echo unknown)
+          case "$reviewers" in
+            true) ;;
+            false) echo "::warning::The rrn-ops environment has no required reviewers: nobody approves this promotion." ;;
+            *) echo "::warning::Could not read the rrn-ops environment's protection rules; confirm it requires reviewers." ;;
+          esac
+
+      # <container scanning tool placeholder>
+      # Replace with the team's chosen scanner.  It should run against
+      # ghcr.io/spacetelescope/nb-wrangler-images:${{ inputs.release_alias }},
+      # fail on findings above the agreed severity threshold, and upload SARIF.
+      # reinstall.yml already installs syft and grype, so grype is the
+      # lowest-friction option if no other scanner is mandated.  Until this step
+      # fails on findings, the warning above is the only signal.
+      - name: Container scan gate (placeholder)
+        env:
+          RELEASE_ALIAS: ${{ inputs.release_alias }}
+        run: |
+          echo "TODO: scan ghcr.io/spacetelescope/nb-wrangler-images:${RELEASE_ALIAS}"
+          echo "TODO: fail the job on findings above the agreed threshold"
+
+  # Do the promotion by reusing retag.yml, so the same alias rules and guards apply as for any other alias.
+  retag:
+    name: Create ops alias
+    needs: approve
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/retag.yml
+    with:
+      input_tag: ${{ inputs.release_alias }}
+      output_tag: ${{ vars.RRN_OPS_ALIAS }}
+      input_digest: ${{ inputs.release_digest }}
+      allow_move: true
+      correlation_id: ${{ inputs.correlation_id }}

@@ -1,0 +1,47 @@
+name: RRN preflight (runner group)
+
+# Proves this repository can use a larger-runner group.  Runner-group access is
+# set per group by an organisation admin and cannot be read from the API without
+# admin:org, so the reliable check is to run a job on it.
+#
+# If the job stays "Queued" for more than a couple of minutes, this repository is
+# not in the group's allowed repositories: ask an org admin to add it, then rerun.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner_group:
+        description: 'Larger-runner group to test'
+        required: true
+        type: choice
+        options:
+          - jwst-pipeline-notebooks-64gb
+          - jwst-pipeline-notebooks-16gb
+        default: 'jwst-pipeline-notebooks-64gb'
+
+permissions:
+  contents: read
+
+jobs:
+  runner-group:
+    name: Run on the group
+    runs-on: ${{ contains(fromJSON('["jwst-pipeline-notebooks-16gb","jwst-pipeline-notebooks-64gb"]'), inputs.runner_group) && fromJSON(format('{{"group":"{0}"}}', inputs.runner_group)) || 'ubuntu-24.04' }}
+    timeout-minutes: 10
+    steps:
+      # If this step runs at all, the repository can use the group. It prints what the runner offers.
+      - name: Report the runner
+        env:
+          GROUP: ${{ inputs.runner_group }}
+        run: |
+          {
+            echo "### Runner group \`${GROUP}\`: reachable from ${GITHUB_REPOSITORY}"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Runner | \`${RUNNER_NAME}\` |"
+            echo "| OS / arch | ${RUNNER_OS} / ${RUNNER_ARCH} |"
+            echo "| CPUs | $(nproc) |"
+            echo "| Memory | $(free -g | awk '/^Mem:/ {print $2}') GB |"
+            echo "| Free disk on / | $(df -BG --output=avail / | tail -n1 | tr -d ' ') |"
+            echo "| Docker | $(docker --version 2>&1) |"
+          } | tee -a "$GITHUB_STEP_SUMMARY"

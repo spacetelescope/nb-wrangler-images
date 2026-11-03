@@ -1,0 +1,41 @@
+name: Test delivery scripts
+
+# Exercises scripts/image_digest.sh and scripts/check_alias.sh, which retag.yml,
+# curate.yml and reinstall.yml depend on.  The real-mode run uses a throwaway
+# local registry, so it needs no GHCR credentials and writes nothing to GHCR.
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - 'tests/**'
+      - '.github/workflows/retag.yml'
+      - '.github/workflows/test-rrn-commands.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  registry-commands:
+    name: Registry commands
+    runs-on: ubuntu-24.04
+    # A throwaway registry the real-mode tests push to. It lives only for this job and holds no real images.
+    services:
+      registry:
+        image: registry:2
+        ports:
+          - 5000:5000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # First the fast tests with a fake docker, which check the scripts' logic.
+      - name: Script logic (fake docker)
+        run: bash tests/test_registry_commands.sh stub
+
+      # Then the same scripts against the real docker CLI, which proves the command formats are valid.
+      - name: Real docker CLI against a local registry
+        env:
+          REGISTRY: localhost:5000
+        run: bash tests/test_registry_commands.sh real
