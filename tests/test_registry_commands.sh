@@ -174,6 +174,8 @@ run_real() {
     local from_registry
     from_registry=$(docker buildx imagetools inspect "${root}:src-a" --format '{{.Manifest.Digest}}')
     [[ "$digest_a" == "$from_registry" ]] && ok "digest matches what the registry reports" || bad "digest $digest_a vs registry $from_registry"
+    # Different content from anything pushed: identical content would share the pushed image's digest.
+    printf 'never pushed %s' "$(date +%s%N)" > "$ctx/payload"
     docker build -q -t "${root}:never-pushed" "$ctx" >/dev/null
     expect_exit "a built-but-unpushed image has no digest" 1 -- bash "$here/scripts/image_digest.sh" "${root}:never-pushed"
 
@@ -197,7 +199,9 @@ run_real() {
     local digest_a_now
     digest_a_now=$(docker buildx imagetools inspect "${root}:src-a" --format '{{.Manifest.Digest}}')
     expect_exit "check passes with the matching expected digest" 0 -- bash "$here/scripts/check_alias.sh" "$root" src-a RomanNexus-2026.2.11 false "$digest_a_now"
-    expect_exit "alias is created from the digest, without pulling" 0 -- docker buildx imagetools create --tag "${root}:RomanNexus-2026.2.11" "${root}@${digest_a_now}"
+    # Pull by digest, tag, push: the steps retag.yml runs.  (Copying with `buildx imagetools create` was
+    # tried first and gave the alias a different digest, because it writes a new manifest.)
+    docker pull -q "${root}@${digest_a_now}" >/dev/null && docker tag "${root}@${digest_a_now}" "${root}:RomanNexus-2026.2.11" && docker push -q "${root}:RomanNexus-2026.2.11" >/dev/null && ok "alias created from the digest" || bad "pull by digest, tag, push"
     local by_digest
     by_digest=$(docker buildx imagetools inspect "${root}:RomanNexus-2026.2.11" --format '{{.Manifest.Digest}}')
     [[ "$by_digest" == "$digest_a_now" ]] && ok "alias made by digest resolves to that digest" || bad "by-digest alias $by_digest vs $digest_a_now"

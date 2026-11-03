@@ -166,15 +166,24 @@ jobs:
           INPUT_DIGEST: ${{ inputs.input_digest }}
         run: bash scripts/check_alias.sh "${IMAGE_ROOT}" "${INPUT_TAG}" "${OUTPUT_TAG}" "${ALLOW_MOVE}" "${INPUT_DIGEST}"
 
-      # By digest the registry copies the manifest itself: no pull, and the alias
-      # can only ever point at the image the build reported.
+      # Pulling by digest means the alias can only ever carry the image the build reported, even if the
+      # source tag has since moved.  (`docker buildx imagetools create` was tried and rejected: it writes
+      # a new manifest, so the alias ended up with a different digest from the image.)
       - name: Add alias by digest
         if: ${{ inputs.input_digest != '' }}
         env:
           OUTPUT_TAG: ${{ inputs.output_tag }}
           INPUT_DIGEST: ${{ inputs.input_digest }}
         run: |
-          docker buildx imagetools create --tag "${IMAGE_ROOT}:${OUTPUT_TAG}" "${IMAGE_ROOT}@${INPUT_DIGEST}"
+          docker pull "${IMAGE_ROOT}@${INPUT_DIGEST}"
+          docker tag  "${IMAGE_ROOT}@${INPUT_DIGEST}" "${IMAGE_ROOT}:${OUTPUT_TAG}"
+          docker push "${IMAGE_ROOT}:${OUTPUT_TAG}"
+          # Do not trust the push: the alias must now resolve to exactly the digest we were given.
+          pushed=$(docker buildx imagetools inspect "${IMAGE_ROOT}:${OUTPUT_TAG}" --format '{{.Manifest.Digest}}')
+          if [[ "$pushed" != "$INPUT_DIGEST" ]]; then
+            echo "::error::${OUTPUT_TAG} resolves to ${pushed}, not the requested ${INPUT_DIGEST}."
+            exit 1
+          fi
 
       - name: Pull source image
         if: ${{ inputs.input_digest == '' }}
