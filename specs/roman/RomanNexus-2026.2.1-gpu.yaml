@@ -37,7 +37,7 @@ system:
     # choose this over any env var setting but not CLI
     favor: spec
   date_updated: '2026-11-11T12:04:03.307325'
-  spec_sha256: c4a32197f32fd80fd85c8901131e576ca36f0ff4aa676e1e2d5b26abd25c8045
+  spec_sha256: efd3976eaf1df1fd7c36f43dcf90a17040a1e93d0b6808930c5381e1f4a78a33
 
 selected_notebooks:
   roman_all:
