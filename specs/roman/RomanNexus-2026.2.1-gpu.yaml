@@ -17,7 +17,7 @@ image_spec_header:
 repositories:
   roman_notebooks:
     url: https://github.com/spacetelescope/roman_notebooks.git
-    ref: "2026.2"
+    ref: "main"
 
 # This is system config that is generally not changed by curators.
 system:
